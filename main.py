@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 
+import DataStructures
 import DatasetParser
 
 parser = argparse.ArgumentParser(description="University timetabling solver")
@@ -14,7 +15,8 @@ def main():
         print(f"Invalid dataset file: {args.input}")
         return
     
-    instructors, students = DatasetParser.Parse_Dataset(args.input)
+    dataset = DatasetParser.Parse_Dataset(args.input)
+    print(dataset.summary())
 
 if __name__ == "__main__":
     main()
