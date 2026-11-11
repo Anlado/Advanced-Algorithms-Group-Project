@@ -5,11 +5,11 @@ from DataStructures import (
 )
 
 
-def _int_or_none(value):
+def int_or_none(value):
     return int(value) if value is not None else None
 
 
-def _parse_room(el) -> Room:
+def parse_room(el) -> Room:
     x, y = (int(v) for v in el.get("location").split(","))
     room = Room(
         id=int(el.get("id")),
@@ -34,13 +34,13 @@ def _parse_room(el) -> Room:
     return room
 
 
-def _parse_section(el) -> Section:
+def parse_section(el) -> Section:
     return Section(
         id=int(el.get("id")),
-        offering=_int_or_none(el.get("offering")),
-        config=_int_or_none(el.get("config")),
+        offering=int_or_none(el.get("offering")),
+        config=int_or_none(el.get("config")),
         subpart=int(el.get("subpart")),
-        parent=_int_or_none(el.get("parent")),
+        parent=int_or_none(el.get("parent")),
         class_limit=int(el.get("classLimit")),
         department=int(el.get("department")),
         dates=el.get("dates", ""),
@@ -58,12 +58,11 @@ def _parse_section(el) -> Section:
             )
             for t in el.findall("time")
         ],
-        rooms=[RoomOption(room_id=int(r.get("id")), pref=float(r.get("pref", 0)))
-               for r in el.findall("room")],
+        rooms=[RoomOption(room_id=int(r.get("id")), pref=float(r.get("pref", 0))) for r in el.findall("room")],
     )
 
 
-def _parse_constraint(el) -> GroupConstraint:
+def parse_constraint(el) -> GroupConstraint:
     return GroupConstraint(
         id=int(el.get("id")),
         type=el.get("type"),
@@ -84,9 +83,9 @@ def Parse_Dataset(file_name) -> Dataset:
     root = ET.parse(file_name).getroot()
 
     rooms = {r.id: r for r in map(parse_room, root.find("rooms"))}
-    sections = {s.id: s for s in map(_parse_section, root.find("classes"))}
-    constraints = [_parse_constraint(c) for c in root.find("groupConstraints")]
-    students = [_parse_student(s) for s in root.find("students")]
+    sections = {s.id: s for s in map(parse_section, root.find("classes"))}
+    constraints = [parse_constraint(c) for c in root.find("groupConstraints")]
+    students = [parse_student(s) for s in root.find("students")]
 
     # Instructors only appear inside classes, so build them from the sections.
     instructors = {}

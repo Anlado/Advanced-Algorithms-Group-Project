@@ -17,8 +17,10 @@ DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 class Room:
     id: int
     capacity: int
-    location: tuple[int, int]          # (x, y) coordinates, used for travel distance
-    constraint: bool = True            # False means the room may be double-booked
+    #(x, y) coordinates
+    location: tuple[int, int]
+    #False means the room can be double-booked  
+    constraint: bool = True
     discouraged: bool = False
     # Availability pattern from <sharing>: one character per `pattern_unit` slots,
     # covering the whole week. Empty means always available.
@@ -48,7 +50,7 @@ class Room:
 
 @dataclass
 class TimeOption:
-    """One allowed meeting pattern for a section, e.g. MWF 8:30 for 50 minutes."""
+    #One allowed meeting pattern for a section, e.g. MWF 8:30 for 50 minutes.
     days: str            # 7-character bitmask, Monday first, e.g. "1010100" = MWF
     start: int           # start slot within the day
     length: int          # duration in slots
@@ -64,7 +66,7 @@ class TimeOption:
         return [i for i, d in enumerate(self.days) if d == "1"]
 
     def overlaps(self, other: "TimeOption") -> bool:
-        """True if the two meeting patterns share a day and overlap in time."""
+        #True if the two meeting patterns share a day and overlap in time.
         shares_day = any(a == "1" and b == "1" for a, b in zip(self.days, other.days))
         return shares_day and self.start < other.end and other.start < self.end
 
@@ -83,7 +85,7 @@ class RoomOption:
 
 @dataclass
 class Section:
-    """A class (course section): the variable the solver assigns a time and room to."""
+    #A class (course section): the variable the solver assigns a time and room to.
     id: int
     offering: Optional[int]          # course offering this section belongs to
     config: Optional[int]
