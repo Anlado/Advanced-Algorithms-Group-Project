@@ -8,6 +8,10 @@ rooms = load_rooms(Path("data/rooms.csv"))
 timeslots = load_timeslots(Path("data/timeslots.csv"))
 sections = load_sections(Path("data/sections.csv"))
 
+# Positive test:
+# Verify that a known feasible timetable satisfies all implemented
+# hard constraints and schedules every section exactly once.
+
 known_feasible_timetable = {}
 
 with open("data/known_feasible_timetable.csv", newline="", encoding="utf-8") as file:
@@ -47,6 +51,10 @@ for section_id, assignment in known_feasible_timetable.items():
 
 assert set(validated_timetable) == set(sections)
 print("Known feasible timetable passed all hard constraints.")
+
+# Negative test:
+# Verify that two sections belonging to the same cohort cannot
+# occupy overlapping timeslots, even when assigned different rooms.
 
 partial_timetable = {
     "S1": ("T1", "R1")
