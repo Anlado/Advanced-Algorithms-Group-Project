@@ -3,6 +3,10 @@ from pathlib import Path
 from src.data_io.dataset_loader import load_instructors, load_rooms,load_timeslots, load_sections
 from src.model.constraints import validate_section_assignment
 from src.heuristic.initial_timetable import get_valid_assignments
+from src.heuristic.initial_timetable import (
+    select_section_mrv,
+    getUnassignedDegree,
+)
 
 instructors = load_instructors(Path("data/instructors.csv"))
 rooms = load_rooms(Path("data/rooms.csv"))
@@ -79,6 +83,7 @@ isValid = validate_section_assignment(
 assert not isValid, "Expected S2 to be rejected due to cohort conflict"
 print("Cohort conflict test passed: S2 was correctly rejected.")
 
+
 # Positive test:
 # Verify that S1 has 20 valid room-timeslot assignments
 # when the timetable is empty.
@@ -99,3 +104,22 @@ assert len(assignments) == 20, (
 assert all(timeslot_id != "T6" for timeslot_id, room_id in assignments)
 
 print("S1 valid assignments test passed.")
+
+
+# Verify that MRV selects an unassigned section with valid assignments.
+selected_section, valid_assignments = select_section_mrv(
+    sections,
+    rooms,
+    timeslots,
+    {},
+    instructors,
+)
+
+assert selected_section is not None
+assert len(valid_assignments) > 0
+
+# Verify that the selected section's degree is nonnegative.
+degree = getUnassignedDegree(selected_section, sections, {})
+assert degree >= 0
+
+print("MRV selection and degree sanity tests passed.")
