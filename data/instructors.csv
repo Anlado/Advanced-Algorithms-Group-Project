@@ -1,0 +1,5 @@
+id,domains,unavailable_slots,required_no_teach_slots,preferred_slots
+I1,CS,T6,,T1;T4
+I2,CS;MATH,T3,,T2;T5
+I3,MATH,T1,T5,T3;T4
+I4,CS,T2,,T5;T6
