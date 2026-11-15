@@ -1,13 +1,22 @@
 from src.model.time_utils import timeslots_overlap
 
-def validate_section_assignment(section, room, timeslot, timetable, instructor, allSections, allTimeslots):
-    if section.capacity > room.capacity:
+def validate_section_assignment(
+        section, 
+        room, 
+        timeslot, 
+        timetable, 
+        instructor, 
+        allSections, 
+        allTimeslots,
+        ):
+    if section.enrollment > room.capacity:
         return False
     
     if section.needs_lab and not room.is_lab:
         return False
     
-    if timeslot.id in instructor.unavailable_slots or timeslot.id in instructor.unavailable_slots:
+    if (timeslot.id in instructor.unavailable_slots 
+        or timeslot.id in instructor.required_no_teach_slots):
         return False
     
     for existing_section_id, assignment in timetable.items():
