@@ -1,5 +1,6 @@
 from src.model.constraints import validate_section_assignment
 
+
 # Return all feasible (timeslot_id, room_id) assignments for a section
 # given the current partial timetable.
 # Each candidate must satisfy the implemented hard constraints.
@@ -28,6 +29,7 @@ def get_valid_assignments(
             if isValid:
                 valid_assignments.append((timeslot.id, room.id))
     return valid_assignments
+
 
 # Select the next unassigned section using Minimum Remaining Values (MRV).
 # Choose the section with the fewest valid assignments.
@@ -80,6 +82,7 @@ def select_section_mrv(
 
     return selected_section, smallest_valid_assignments
 
+
 # Count the unassigned sections that conflict with the given section.
 # Two sections conflict if they share an instructor or cohort.
 # Assigned sections and the section itself are excluded.
@@ -98,3 +101,66 @@ def getUnassignedDegree(section, sections, timetable):
                 degree += 1
 
     return degree
+
+
+# Order candidate assignments using Least Constraining Value (LCV).
+# Prefer assignments that preserve the most valid options
+# for the remaining unassigned sections.
+# Precondition: section is not already assigned in timetable.
+# Temporary assignments are undone after each candidate is evaluated.
+def order_assignments_lcv(
+    section,
+    validAssignments,
+    sections,
+    rooms,
+    timeslots,
+    timetable,
+    instructors,
+):
+    scored_assignments = []
+
+    for assignment in validAssignments:
+        # Temporarily assign the selected section.
+        timetable[section.id] = assignment
+
+        remaining_options = 0
+        dead_end = False
+
+        try:
+            for other_section_id, other_section in sections.items():
+                # Only evaluate sections that remain unassigned.
+                if other_section_id not in timetable:
+                    other_assignments = get_valid_assignments(
+                        other_section,
+                        rooms,
+                        timeslots,
+                        timetable,
+                        instructors,
+                        sections,
+                    )
+
+                    # Detect an immediate dead end.
+                    if len(other_assignments) == 0:
+                        dead_end = True
+                        break
+
+                    remaining_options += len(other_assignments)
+
+        finally:
+            # Undo the temporary assignment.
+            del timetable[section.id]
+
+        scored_assignments.append(
+            (dead_end, remaining_options, assignment)
+        )
+
+    # Prioritize non-dead-end assignments.
+    # Then prefer higher scores (least constraining first).
+    scored_assignments.sort(
+        key=lambda item: (item[0], -item[1])
+    )
+
+    return [
+        assignment
+        for _, _, assignment in scored_assignments
+    ]

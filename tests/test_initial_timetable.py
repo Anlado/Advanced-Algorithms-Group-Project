@@ -8,6 +8,14 @@ from src.heuristic.initial_timetable import (
     getUnassignedDegree,
 )
 
+from src.heuristic.initial_timetable import (
+    get_valid_assignments,
+    select_section_mrv,
+    getUnassignedDegree,
+    order_assignments_lcv,
+)
+
+
 instructors = load_instructors(Path("data/instructors.csv"))
 rooms = load_rooms(Path("data/rooms.csv"))
 timeslots = load_timeslots(Path("data/timeslots.csv"))
@@ -123,3 +131,79 @@ degree = getUnassignedDegree(selected_section, sections, {})
 assert degree >= 0
 
 print("MRV selection and degree sanity tests passed.")
+
+
+# Positive test:
+# Verify that LCV returns every valid assignment exactly once
+# and does not modify the original timetable.
+
+partial_timetable = {}
+
+section = sections["S1"]
+
+valid_assignments = get_valid_assignments(
+    section,
+    rooms,
+    timeslots,
+    partial_timetable,
+    instructors,
+    sections,
+)
+
+original_timetable = partial_timetable.copy()
+
+ordered_assignments = order_assignments_lcv(
+    section,
+    valid_assignments,
+    sections,
+    rooms,
+    timeslots,
+    partial_timetable,
+    instructors,
+)
+
+assert len(ordered_assignments) == len(valid_assignments)
+assert set(ordered_assignments) == set(valid_assignments)
+assert partial_timetable == original_timetable
+
+print("LCV assignment preservation test passed.")
+
+
+# Ordering test:
+# Verify that LCV prioritizes assignments that leave more
+# valid options for the remaining sections.
+def lcv_score(section, assignment):
+    candidate_timetable = {section.id: assignment}
+    remaining_options = 0
+    dead_end = False
+
+    for other_section_id, other_section in sections.items():
+        if other_section_id not in candidate_timetable:
+            options = get_valid_assignments(
+                other_section,
+                rooms,
+                timeslots,
+                candidate_timetable,
+                instructors,
+                sections,
+            )
+
+            if len(options) == 0:
+                dead_end = True
+                break
+
+            remaining_options += len(options)
+
+    return (dead_end, -remaining_options)
+
+scores = [
+    lcv_score(section, assignment)
+    for assignment in ordered_assignments
+]
+
+assert scores == sorted(scores), (
+    "LCV assignments are not ordered from least "
+    "constraining to most constraining."
+)
+
+print("LCV ordering test passed.")
