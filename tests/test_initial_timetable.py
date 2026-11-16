@@ -2,7 +2,7 @@ import csv
 from pathlib import Path
 from src.data_io.dataset_loader import load_instructors, load_rooms,load_timeslots, load_sections
 from src.model.constraints import validate_section_assignment
-from src.heuristic.initial_timetable import get_valid_assignments
+from src.heuristic.initial_timetable import generate_initial_timetable, get_valid_assignments
 from src.heuristic.initial_timetable import (
     select_section_mrv,
     getUnassignedDegree,
@@ -207,3 +207,48 @@ assert scores == sorted(scores), (
 )
 
 print("LCV ordering test passed.")
+
+# Integration test:
+# Generate a complete timetable using MRV, LCV, and backtracking.
+# Verify that every section is scheduled and all assignments
+# satisfy the implemented hard constraints.
+generated_timetable = generate_initial_timetable(
+    sections,
+    rooms,
+    timeslots,
+    instructors,
+)
+
+assert generated_timetable is not None, (
+    "Expected a feasible timetable to be generated."
+)
+
+assert set(generated_timetable) == set(sections), (
+    "Generated timetable does not contain every section."
+)
+
+validated_timetable = {}
+
+for section_id, assignment in generated_timetable.items():
+    timeslot_id, room_id = assignment
+
+    section = sections[section_id]
+
+    is_valid = validate_section_assignment(
+        section,
+        rooms[room_id],
+        timeslots[timeslot_id],
+        validated_timetable,
+        instructors[section.instructor_id],
+        sections,
+        timeslots,
+    )
+
+    assert is_valid, (
+        f"Invalid generated assignment for {section_id}: {assignment}"
+    )
+
+    validated_timetable[section_id] = assignment
+
+print("Initial timetable generation test passed.")
+print("Generated timetable:", generated_timetable)

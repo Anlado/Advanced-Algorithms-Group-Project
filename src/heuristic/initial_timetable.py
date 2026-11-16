@@ -164,3 +164,88 @@ def order_assignments_lcv(
         assignment
         for _, _, assignment in scored_assignments
     ]
+
+
+# Recursively construct a feasible timetable using backtracking.
+# MRV selects the next section, while LCV determines the order
+# in which its valid assignments are attempted.
+# Return True when every section has been assigned.
+# Return False when the current partial timetable leads to a dead end.
+def backtrack(
+    sections,
+    rooms,
+    timeslots,
+    timetable,
+    instructors,
+):
+    # Base case: every section has an assignment.
+    if len(timetable) == len(sections):
+        return True
+
+    # Select the most constrained unassigned section.
+    selected_section, valid_assignments = select_section_mrv(
+        sections,
+        rooms,
+        timeslots,
+        timetable,
+        instructors,
+    )
+
+    # No valid assignment means this branch cannot succeed.
+    if selected_section is None:
+        return False
+
+    # Try the least constraining assignments first.
+    ordered_assignments = order_assignments_lcv(
+        selected_section,
+        valid_assignments,
+        sections,
+        rooms,
+        timeslots,
+        timetable,
+        instructors,
+    )
+
+    for assignment in ordered_assignments:
+        # Make a tentative assignment.
+        timetable[selected_section.id] = assignment
+
+        # Recursively schedule the remaining sections.
+        if backtrack(
+            sections,
+            rooms,
+            timeslots,
+            timetable,
+            instructors,
+        ):
+            return True
+
+        # Undo the assignment if the recursive attempt failed.
+        del timetable[selected_section.id]
+
+    # Every candidate failed.
+    return False
+
+
+# Generate an initial timetable satisfying all hard constraints.
+# Return the completed timetable if successful, or None otherwise.
+def generate_initial_timetable(
+    sections,
+    rooms,
+    timeslots,
+    instructors,
+):
+    timetable = {}
+
+    success = backtrack(
+        sections,
+        rooms,
+        timeslots,
+        timetable,
+        instructors,
+    )
+
+    if success:
+        return timetable
+
+    return None
