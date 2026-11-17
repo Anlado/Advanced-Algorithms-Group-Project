@@ -11,3 +11,7 @@ def timeslots_overlap(t1, t2):
     end2 = start2 + timedelta(minutes=t2.duration_min)
 
     return start1 < end2 and start2 < end1
+
+def time_to_minutes(time_string):
+    hours, minutes = map(int, time_string.split(":"))
+    return hours * 60 + minutes
