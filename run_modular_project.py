@@ -14,6 +14,7 @@ from src.data_io.dataset_loader import (
 from src.heuristic.initial_timetable import generate_initial_timetable
 from src.heuristic.tabu_search import tabu_search
 from src.model.soft_constraints import calculate_total_penalty
+from src.reporting.schedule_report import export_schedule
 
 
 # Resolve paths relative to this script, regardless of the working directory.
@@ -200,6 +201,18 @@ def run_modular_project(config_path=PROJECT_ROOT / "config.json"):
         rooms,
         timeslots,
     )
+
+    output_directory = PROJECT_ROOT / config["output_directory"]
+
+    schedule_path = export_schedule(
+        best_timetable,
+        sections,
+        rooms,
+        timeslots,
+        output_directory / "schedule.csv",
+    )
+
+    print(f"\nOptimized schedule exported to: {schedule_path}")
 
     print("\nEVALUATION METRICS")
     print("-" * 42)
