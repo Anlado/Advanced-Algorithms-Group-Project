@@ -15,6 +15,7 @@ from src.heuristic.initial_timetable import generate_initial_timetable
 from src.heuristic.tabu_search import tabu_search
 from src.model.soft_constraints import calculate_total_penalty
 from src.reporting.feasibility_report import export_feasibility_report
+from src.reporting.quality_curve import export_quality_curve
 from src.reporting.schedule_report import export_schedule
 from src.reporting.metrics_report import export_metrics
 from src.reporting.feasibility_report import find_feasibility_violations
@@ -158,6 +159,8 @@ def run_modular_project(config_path=PROJECT_ROOT / "config.json"):
     # Phase 2: Optimize the initial timetable using Tabu Search.
     optimization_start = time.perf_counter()
 
+    search_history = []
+
     best_timetable = tabu_search(
         initial_timetable,
         sections,
@@ -170,6 +173,7 @@ def run_modular_project(config_path=PROJECT_ROOT / "config.json"):
         parameters["tabu_tenure"],
         parameters["max_iterations"],
         parameters["no_improvement_max_iterations"],
+        history=search_history
     )
 
     optimization_time = time.perf_counter() - optimization_start
@@ -252,6 +256,14 @@ def run_modular_project(config_path=PROJECT_ROOT / "config.json"):
             )
         ),
     )
+
+    # Export the Tabu Search optimization history as a quality curve.
+    quality_curve_path = export_quality_curve(
+        search_history,
+        output_directory / "plots" / "quality_curve.png",
+    )
+
+    print(f"Quality curve exported to: {quality_curve_path}")
 
     print(f"Evaluation metrics exported to: {metrics_path}")
 
