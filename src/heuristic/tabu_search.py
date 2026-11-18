@@ -180,3 +180,11 @@ def remove_expired_tabu_entries(tabu_memory, current_iteration):
             del tabu_memory[entry]
 
     return tabu_memory
+
+# Determine whether a candidate satisfies the aspiration criterion.
+# A candidate satisfies aspiration if its penalty is strictly lower
+# than the best penalty found across all previous search iterations.
+# This allows an otherwise tabu move to be considered for selection.
+# Return True if aspiration is satisfied, or False otherwise.
+def meets_aspiration_criterion(candidate_penalty, best_penalty):
+    return candidate_penalty < best_penalty
