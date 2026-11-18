@@ -9,7 +9,10 @@ from src.data_io.dataset_loader import (
     load_timeslots,
 )
 from src.model.constraints import validate_section_assignment
-from src.heuristic.tabu_search import generate_reassignment_neighbors
+from src.heuristic.tabu_search import (
+    generate_reassignment_neighbors,
+    generate_swap_neighbors,
+)
 
 
 # Load the dataset.
@@ -36,7 +39,10 @@ with open(
         )
 
 
-# Generate the reassignment neighborhood.
+# ============================================================
+# REASSIGNMENT NEIGHBORHOOD TESTS
+# ============================================================
+
 original_timetable = known_feasible_timetable.copy()
 
 neighbors = generate_reassignment_neighbors(
@@ -49,7 +55,6 @@ neighbors = generate_reassignment_neighbors(
 
 
 # Test A: Original timetable preservation.
-# Verify that generating neighbors does not modify the original timetable.
 assert known_feasible_timetable == original_timetable, (
     "Neighborhood generation modified the original timetable."
 )
@@ -58,7 +63,6 @@ print("Test A passed: Original timetable preserved.")
 
 
 # Test B: Neighborhood is nonempty.
-# Verify that at least one feasible reassignment exists.
 assert len(neighbors) > 0, (
     "Expected at least one feasible reassignment neighbor."
 )
@@ -67,7 +71,6 @@ print("Test B passed: Reassignment neighborhood is nonempty.")
 
 
 # Test C: Every neighbor schedules all sections.
-# Verify that no section is missing or added.
 for neighbor in neighbors:
     assert set(neighbor) == set(sections), (
         "A neighboring timetable does not contain exactly the required sections."
@@ -77,7 +80,6 @@ print("Test C passed: Every neighbor contains all sections.")
 
 
 # Test D: Every neighbor differs by exactly one assignment.
-# Verify that the reassignment operation changes one section only.
 for neighbor in neighbors:
     changed_sections = [
         section_id
@@ -93,8 +95,6 @@ print("Test D passed: Every neighbor changes exactly one section.")
 
 
 # Test E: Every neighboring timetable satisfies all hard constraints.
-# Validate each neighbor from an empty partial timetable so that
-# each section is checked against previously validated assignments.
 for neighbor_index, neighbor in enumerate(neighbors):
     validated_timetable = {}
 
@@ -127,7 +127,6 @@ print("Test E passed: All neighbors satisfy hard constraints.")
 
 
 # Test F: No duplicate neighboring timetables.
-# Verify that each generated neighbor represents a unique assignment.
 neighbor_signatures = [
     tuple(sorted(neighbor.items()))
     for neighbor in neighbors
@@ -150,3 +149,190 @@ print("Test G passed: Every neighbor differs from the original.")
 
 print(f"\nTotal feasible reassignment neighbors: {len(neighbors)}")
 print("All reassignment neighborhood tests passed.")
+
+
+# ============================================================
+# SWAP NEIGHBORHOOD TESTS
+# ============================================================
+
+original_timetable = known_feasible_timetable.copy()
+
+swap_neighbors = generate_swap_neighbors(
+    known_feasible_timetable,
+    sections,
+    rooms,
+    timeslots,
+    instructors,
+)
+
+
+# Test H: Original timetable preservation.
+assert known_feasible_timetable == original_timetable, (
+    "Swap neighborhood generation modified the original timetable."
+)
+
+print("\nTest H passed: Original timetable preserved.")
+
+
+# Test I: Neighborhood is nonempty.
+assert len(swap_neighbors) > 0, (
+    "Expected at least one feasible swap neighbor."
+)
+
+print("Test I passed: Swap neighborhood is nonempty.")
+
+
+# Test J: Every neighbor schedules all sections.
+for neighbor in swap_neighbors:
+    assert set(neighbor) == set(sections), (
+        "A swap neighbor does not contain exactly the required sections."
+    )
+
+print("Test J passed: Every swap neighbor contains all sections.")
+
+
+# Test K: Every neighbor swaps exactly two assignments.
+for neighbor in swap_neighbors:
+    changed_sections = [
+        section_id
+        for section_id in original_timetable
+        if neighbor[section_id] != original_timetable[section_id]
+    ]
+
+    assert len(changed_sections) == 2, (
+        f"Expected exactly two changed sections, got {changed_sections}"
+    )
+
+    section_id_1, section_id_2 = changed_sections
+
+    assert neighbor[section_id_1] == original_timetable[section_id_2], (
+        "First section did not receive the second section's assignment."
+    )
+
+    assert neighbor[section_id_2] == original_timetable[section_id_1], (
+        "Second section did not receive the first section's assignment."
+    )
+
+print("Test K passed: Every neighbor swaps exactly two assignments.")
+
+
+# Test L: Every swap neighbor satisfies all hard constraints.
+for neighbor_index, neighbor in enumerate(swap_neighbors):
+    validated_timetable = {}
+
+    for section_id, assignment in neighbor.items():
+        timeslot_id, room_id = assignment
+
+        section = sections[section_id]
+        room = rooms[room_id]
+        timeslot = timeslots[timeslot_id]
+        instructor = instructors[section.instructor_id]
+
+        is_valid = validate_section_assignment(
+            section,
+            room,
+            timeslot,
+            validated_timetable,
+            instructor,
+            sections,
+            timeslots,
+        )
+
+        assert is_valid, (
+            f"Swap neighbor {neighbor_index} violates a hard constraint "
+            f"at section {section_id}: {assignment}"
+        )
+
+        validated_timetable[section_id] = assignment
+
+print("Test L passed: All swap neighbors satisfy hard constraints.")
+
+
+# Test M: No duplicate or unchanged swap neighbors.
+swap_signatures = [
+    tuple(sorted(neighbor.items()))
+    for neighbor in swap_neighbors
+]
+
+assert len(swap_signatures) == len(set(swap_signatures)), (
+    "Duplicate swap neighbors were generated."
+)
+
+for neighbor in swap_neighbors:
+    assert neighbor != original_timetable, (
+        "Swap neighborhood contains the original timetable."
+    )
+
+print("Test M passed: No duplicate or unchanged swap neighbors.")
+
+
+# Test N: Every possible pair is either rejected or generated correctly.
+# There are n(n-1)/2 unique pairs of sections.
+section_ids = list(original_timetable)
+total_pairs = len(section_ids) * (len(section_ids) - 1) // 2
+
+assert len(swap_neighbors) <= total_pairs, (
+    "Generated more swap neighbors than possible unique section pairs."
+)
+
+# Build all distinct swap candidates without filtering by feasibility.
+all_swap_candidates = []
+
+for i in range(len(section_ids) - 1):
+    for j in range(i + 1, len(section_ids)):
+        s1 = section_ids[i]
+        s2 = section_ids[j]
+
+        if original_timetable[s1] == original_timetable[s2]:
+            continue
+
+        candidate = original_timetable.copy()
+        candidate[s1] = original_timetable[s2]
+        candidate[s2] = original_timetable[s1]
+        all_swap_candidates.append(candidate)
+
+# Check each candidate independently against all hard constraints.
+feasible_signatures = set()
+infeasible_count = 0
+
+for candidate in all_swap_candidates:
+    validated_timetable = {}
+    feasible = True
+
+    for section_id, (timeslot_id, room_id) in candidate.items():
+        section = sections[section_id]
+
+        if not validate_section_assignment(
+            section,
+            rooms[room_id],
+            timeslots[timeslot_id],
+            validated_timetable,
+            instructors[section.instructor_id],
+            sections,
+            timeslots,
+        ):
+            feasible = False
+            break
+
+        validated_timetable[section_id] = candidate[section_id]
+
+    if feasible:
+        feasible_signatures.add(tuple(sorted(candidate.items())))
+    else:
+        infeasible_count += 1
+
+assert set(swap_signatures) == feasible_signatures, (
+    "Generated swap neighbors do not match the independently "
+    "validated feasible swap candidates."
+)
+
+print(
+    "Test N passed: All feasible swaps generated and "
+    "all infeasible swaps rejected."
+)
+
+
+print(f"\nTotal possible section pairs: {total_pairs}")
+print(f"Total infeasible swap candidates: {infeasible_count}")
+print(f"Total feasible swap neighbors: {len(swap_neighbors)}")
+print("All swap neighborhood tests passed.")
