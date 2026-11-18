@@ -189,6 +189,18 @@ def remove_expired_tabu_entries(tabu_memory, current_iteration):
 def meets_aspiration_criterion(candidate_penalty, best_penalty):
     return candidate_penalty < best_penalty
 
+
+# Record the current and best-known penalty at a search iteration.
+# This history is used to generate the Tabu Search quality curve.
+def record_search_history(history, iteration, current_penalty, best_penalty):
+    if history is not None:
+        history.append({
+            "iteration": iteration,
+            "current_penalty": current_penalty,
+            "best_penalty": best_penalty,
+        })
+
+
 # Optimize an initial feasible timetable using Tabu Search.
 # Generate reassignment and swap neighbors, then evaluate their soft penalties.
 # Select the best admissible neighbor using tabu memory and aspiration.
@@ -207,6 +219,7 @@ def tabu_search(
     tabu_tenure, 
     max_iterations, 
     no_improvement_max_iterations,
+    history=None
 ):
     current_timetable = timetable.copy()
     best_timetable = timetable.copy()
@@ -225,6 +238,14 @@ def tabu_search(
     tabu_memory = {}
     iteration = 0
     no_improvement = 0
+
+    # Record the initial timetable before optimization begins.
+    record_search_history(
+        history,
+        iteration,
+        current_penalty,
+        best_penalty,
+    )
 
     while (
         iteration < max_iterations
@@ -305,4 +326,11 @@ def tabu_search(
             no_improvement = 0
         else:
             no_improvement += 1
+
+        record_search_history(
+            history,
+            iteration,
+            current_penalty,
+            best_penalty,
+        )
     return best_timetable
