@@ -14,6 +14,7 @@ from src.data_io.dataset_loader import (
 from src.heuristic.initial_timetable import generate_initial_timetable
 from src.heuristic.tabu_search import tabu_search
 from src.model.soft_constraints import calculate_total_penalty
+from src.reporting.feasibility_report import export_feasibility_report
 from src.reporting.schedule_report import export_schedule
 
 
@@ -202,6 +203,7 @@ def run_modular_project(config_path=PROJECT_ROOT / "config.json"):
         timeslots,
     )
 
+    # Export the optimized timetable as a human-readable CSV schedule.
     output_directory = PROJECT_ROOT / config["output_directory"]
 
     schedule_path = export_schedule(
@@ -213,6 +215,21 @@ def run_modular_project(config_path=PROJECT_ROOT / "config.json"):
     )
 
     print(f"\nOptimized schedule exported to: {schedule_path}")
+
+    # Verify the optimized timetable and export its feasibility report.
+    feasibility_report_path = output_directory / "feasibility_report.md"
+
+    is_feasible = export_feasibility_report(
+        best_timetable,
+        sections,
+        rooms,
+        timeslots,
+        instructors,
+        feasibility_report_path,
+    )
+
+    print(f"Feasibility report exported to: {feasibility_report_path}")
+    print(f"Hard-constraint feasibility: {'PASS' if is_feasible else 'FAIL'}")
 
     print("\nEVALUATION METRICS")
     print("-" * 42)
