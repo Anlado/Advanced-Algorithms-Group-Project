@@ -16,6 +16,8 @@ from src.heuristic.tabu_search import tabu_search
 from src.model.soft_constraints import calculate_total_penalty
 from src.reporting.feasibility_report import export_feasibility_report
 from src.reporting.schedule_report import export_schedule
+from src.reporting.metrics_report import export_metrics
+from src.reporting.feasibility_report import find_feasibility_violations
 
 
 # Resolve paths relative to this script, regardless of the working directory.
@@ -227,6 +229,31 @@ def run_modular_project(config_path=PROJECT_ROOT / "config.json"):
         instructors,
         feasibility_report_path,
     )
+
+    # Export the dataset, optimization, feasibility, and runtime metrics.
+    metrics_path = export_metrics(
+        sections=sections,
+        rooms=rooms,
+        timeslots=timeslots,
+        instructors=instructors,
+        initial_penalty=initial_penalty,
+        final_penalty=final_penalty,
+        is_feasible=is_feasible,
+        construction_runtime=construction_time,
+        optimization_runtime=optimization_time,
+        output_path=output_directory / "metrics.json",
+        hard_constraint_violations=len(
+            find_feasibility_violations(
+                best_timetable,
+                sections,
+                rooms,
+                timeslots,
+                instructors,
+            )
+        ),
+    )
+
+    print(f"Evaluation metrics exported to: {metrics_path}")
 
     print(f"Feasibility report exported to: {feasibility_report_path}")
     print(f"Hard-constraint feasibility: {'PASS' if is_feasible else 'FAIL'}")
