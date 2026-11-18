@@ -1,9 +1,18 @@
 from src.model.time_utils import time_to_minutes
 
 
+# Return Section objects regardless of whether sections is a dictionary or list.
+# This allows the penalty functions to work with both data representations.
+def get_section_objects(sections):
+    if isinstance(sections, dict):
+        return sections.values()
+
+    return sections
+
+
 def calculate_instructor_preference_penalty(timetable, sections, instructors):
     total_penalty = 0
-    for section in sections:
+    for section in get_section_objects(sections):
         timeslot_id, _ = timetable[section.id]
 
         instructor = instructors[section.instructor_id]
@@ -21,7 +30,7 @@ def calculate_cohort_idle_time_penalty(timetable, sections, timeslots, cohort_id
     total_idle_time = 0
     for cohort_id in cohort_ids:
         dailySchedule = {}
-        for section in sections:
+        for section in get_section_objects(sections):
             # Find the scheduled classes belonging to cohort
             if section.cohort_id == cohort_id:
                 timeslot_id, _ = timetable[section.id]

@@ -1,5 +1,6 @@
 
 from src.model.constraints import validate_section_assignment
+from src.model.soft_constraints import calculate_total_penalty
 
 
 # Generate feasible neighboring timetables using single-section reassignment.
@@ -168,7 +169,6 @@ def is_tabu(
 
     return False
 
-
 # Remove tabu restrictions that have reached their expiration iteration.
 # An entry expires when current_iteration is greater than or equal to
 # its stored expiration value.
@@ -188,3 +188,121 @@ def remove_expired_tabu_entries(tabu_memory, current_iteration):
 # Return True if aspiration is satisfied, or False otherwise.
 def meets_aspiration_criterion(candidate_penalty, best_penalty):
     return candidate_penalty < best_penalty
+
+# Optimize an initial feasible timetable using Tabu Search.
+# Generate reassignment and swap neighbors, then evaluate their soft penalties.
+# Select the best admissible neighbor using tabu memory and aspiration.
+# Allow worsening moves to escape local optima while preserving the best solution.
+# Stop when an iteration limit, stagnation limit, or zero penalty is reached.
+# Return the best feasible timetable found.
+def tabu_search(
+    timetable, 
+    sections, 
+    rooms, 
+    timeslots, 
+    instructors, 
+    cohort_ids, 
+    idle_weight, 
+    preference_weight, 
+    tabu_tenure, 
+    max_iterations, 
+    no_improvement_max_iterations,
+):
+    current_timetable = timetable.copy()
+    best_timetable = timetable.copy()
+
+    current_penalty = calculate_total_penalty(
+        current_timetable, 
+        sections, 
+        instructors, 
+        timeslots, 
+        cohort_ids, 
+        idle_weight, 
+        preference_weight,
+    )
+    best_penalty = current_penalty
+
+    tabu_memory = {}
+    iteration = 0
+    no_improvement = 0
+
+    while (
+        iteration < max_iterations
+        and no_improvement < no_improvement_max_iterations
+        and best_penalty > 0
+    ):
+        iteration += 1
+
+        # Remove expired tabu restrictions
+        remove_expired_tabu_entries(tabu_memory, iteration)
+
+        neighborhood = generate_reassignment_neighbors(
+            current_timetable, 
+            sections, 
+            rooms, 
+            timeslots, 
+            instructors,
+        )
+
+        neighborhood.extend(
+            generate_swap_neighbors(
+                current_timetable, 
+                sections, 
+                rooms, 
+                timeslots, 
+                instructors,
+            ),
+        )
+
+        selected_neighbor = None
+        selected_penalty = float("inf")
+
+        for candidate_timetable in neighborhood:
+            candidate_penalty = calculate_total_penalty(
+                candidate_timetable, 
+                sections, 
+                instructors, 
+                timeslots, 
+                cohort_ids, 
+                idle_weight, 
+                preference_weight,
+            )
+
+            tabu = is_tabu(
+                current_timetable, 
+                candidate_timetable, 
+                tabu_memory, 
+                iteration,
+            )
+
+            aspiration = meets_aspiration_criterion(
+                candidate_penalty,
+                best_penalty,
+            )
+
+            if not tabu or aspiration:
+                if candidate_penalty < selected_penalty:
+                    selected_neighbor = candidate_timetable
+                    selected_penalty = candidate_penalty
+
+        if selected_neighbor is None:
+            break
+
+        add_tabu_assignments(
+            current_timetable, 
+            selected_neighbor, 
+            tabu_memory, 
+            iteration, 
+            tabu_tenure,
+        )
+
+        current_timetable = selected_neighbor.copy()
+        current_penalty = selected_penalty
+
+        if current_penalty < best_penalty:
+            best_timetable = current_timetable.copy()
+            best_penalty = current_penalty
+            no_improvement = 0
+        else:
+            no_improvement += 1
+    return best_timetable
