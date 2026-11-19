@@ -23,13 +23,15 @@ def load_instructors(file_path: Path) -> dict[str, Instructor]:
         for row in reader:
             instructor = Instructor(
                 id=row["id"],
+                first_name=row["first_name"].strip(),
+                last_name=row["last_name"].strip(),
                 domains=parse_set(row["domains"]),
                 unavailable_slots=parse_set(row["unavailable_slots"]),
                 required_no_teach_slots=parse_set(row["required_no_teach_slots"]),
                 preferred_slots=parse_set(row["preferred_slots"]),
             )
             instructors[instructor.id] = instructor
-
+            
     return instructors
 
 def load_rooms(file_path: Path) -> dict[str, Room]:

@@ -8,7 +8,7 @@ from pathlib import Path
 # Convert internal section, timeslot, and room IDs into descriptive values.
 # Preserve the section ID so multiple sections of a course remain distinguishable.
 # Create the output directory automatically if it does not exist.
-def export_schedule(timetable, sections, rooms, timeslots, output_path):
+def export_schedule(timetable, sections, rooms, timeslots, instructors, output_path):
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -23,12 +23,15 @@ def export_schedule(timetable, sections, rooms, timeslots, output_path):
             "end_time",
             "room",
             "instructor_id",
+            "first_name",
+            "last_name",
         ])
 
         for section_id, (timeslot_id, room_id) in timetable.items():
             section = sections[section_id]
             timeslot = timeslots[timeslot_id]
             room = rooms[room_id]
+            instructor = instructors[section.instructor_id]
 
             # Calculate the end time using the timeslot duration.
             start = datetime.strptime(timeslot.start_time, "%H:%M")
@@ -45,6 +48,8 @@ def export_schedule(timetable, sections, rooms, timeslots, output_path):
                 end.strftime("%H:%M"),
                 room_label,
                 section.instructor_id,
+                instructor.first_name,
+                instructor.last_name,
             ])
 
     return output_path

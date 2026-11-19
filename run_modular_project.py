@@ -58,7 +58,7 @@ def evaluate_timetable(
 # Display a human-readable university timetable.
 # Resolve stored IDs into course information, day, time, room, and instructor.
 # Keep the underlying timetable representation unchanged.
-def display_timetable(title, timetable, sections, rooms, timeslots):
+def display_timetable(title, timetable, sections, rooms, timeslots, instructors):
     print(f"\n{title}")
     print("-" * 92)
 
@@ -79,6 +79,8 @@ def display_timetable(title, timetable, sections, rooms, timeslots):
         section = sections[section_id]
         timeslot = timeslots[timeslot_id]
         room = rooms[room_id]
+        instructor = instructors[section.instructor_id]
+        instructor_label = f"{instructor.id} - {instructor.full_name}"
 
         # Convert the start time into minutes since midnight.
         hour, minute = map(int, timeslot.start_time.split(":"))
@@ -105,13 +107,16 @@ def display_timetable(title, timetable, sections, rooms, timeslots):
             f"{timeslot.day:<10}"
             f"{time_range:<16}"
             f"{room_label:<14}"
-            f"{section.instructor_id:<12}"
+            f"{instructor_label:<28}"
         )
 
 
 # Execute the complete construction and optimization pipeline.
 # Measure each phase independently and report the penalty improvement.
-def run_modular_project(config_path=PROJECT_ROOT / "config.json"):
+def run_modular_project(
+    config_path=PROJECT_ROOT / "config.json",
+    construction_only=False,
+):
     with open(config_path, encoding="utf-8") as file:
         config = json.load(file)
 
@@ -146,6 +151,28 @@ def run_modular_project(config_path=PROJECT_ROOT / "config.json"):
     if initial_timetable is None:
         print("\nNo feasible initial timetable could be constructed.")
         return None
+    
+    # Optional: evaluate initial construction without Tabu Search.
+    if construction_only:
+        violations = find_feasibility_violations(
+            initial_timetable,
+            sections,
+            rooms,
+            timeslots,
+            instructors,
+        )
+
+        print("\nINITIAL CONSTRUCTION RESULTS")
+        print("-" * 42)
+        print(f"Sections scheduled: {len(initial_timetable)} / {len(sections)}")
+        print(f"Construction runtime: {construction_time:.6f} seconds")
+        print(f"Hard-constraint violations: {len(violations)}")
+        print(
+            "Hard-constraint feasibility: "
+            f"{'PASS' if not violations else 'FAIL'}"
+        )
+
+        return initial_timetable
 
     initial_penalty = evaluate_timetable(
         initial_timetable,
@@ -200,13 +227,16 @@ def run_modular_project(config_path=PROJECT_ROOT / "config.json"):
         sections,
         rooms,
         timeslots,
+        instructors,
     )
+
     display_timetable(
         "OPTIMIZED TIMETABLE",
         best_timetable,
         sections,
         rooms,
         timeslots,
+        instructors,
     )
 
     # Export the optimized timetable as a human-readable CSV schedule.
@@ -217,6 +247,7 @@ def run_modular_project(config_path=PROJECT_ROOT / "config.json"):
         sections,
         rooms,
         timeslots,
+        instructors,
         output_directory / "schedule.csv",
     )
 

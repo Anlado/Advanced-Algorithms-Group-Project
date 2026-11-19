@@ -1,6 +1,10 @@
 
+from collections import defaultdict
+import random
+
 from src.model.constraints import validate_section_assignment
 from src.model.soft_constraints import calculate_total_penalty
+from src.model.time_utils import time_to_minutes
 
 
 # Generate feasible neighboring timetables using single-section reassignment.
@@ -208,44 +212,242 @@ def record_search_history(history, iteration, current_penalty, best_penalty):
 # Stop when an iteration limit, stagnation limit, or zero penalty is reached.
 # Return the best feasible timetable found.
 def tabu_search(
-    timetable, 
-    sections, 
-    rooms, 
-    timeslots, 
-    instructors, 
-    cohort_ids, 
-    idle_weight, 
-    preference_weight, 
-    tabu_tenure, 
-    max_iterations, 
+    timetable,
+    sections,
+    rooms,
+    timeslots,
+    instructors,
+    cohort_ids,
+    idle_weight,
+    preference_weight,
+    tabu_tenure,
+    max_iterations,
     no_improvement_max_iterations,
-    history=None
+    history=None,
+    reassignment_attempts=200,
+    swap_attempts=100,
 ):
+    """
+    Bounded-neighborhood Tabu Search.
+
+    Preserves:
+      - Reassignment and swap moves
+      - Hard-constraint feasibility
+      - Tabu memory and aspiration
+      - Best admissible neighbor selection
+      - Worsening moves
+      - Search history and stopping criteria
+
+    Uses exact incremental penalty evaluation.
+    """
+
     current_timetable = timetable.copy()
     best_timetable = timetable.copy()
 
+    section_ids = list(current_timetable.keys())
+    slot_ids = list(timeslots.keys())
+    room_ids = list(rooms.keys())
+
+    # --------------------------------------------------------
+    # 1. Precompute cohort membership and slot information
+    # --------------------------------------------------------
+
+    cohort_sections = defaultdict(list)
+
+    for section in sections.values():
+        cohort_sections[section.cohort_id].append(
+            section.id
+        )
+
+    slot_info = {}
+
+    for slot_id, slot in timeslots.items():
+        start = time_to_minutes(slot.start_time)
+
+        slot_info[slot_id] = (
+            slot.day,
+            start,
+            start + slot.duration_min,
+        )
+
+    # --------------------------------------------------------
+    # 2. Calculate one cohort's idle-time penalty
+    # --------------------------------------------------------
+
+    def cohort_idle_penalty(schedule, cohort_id):
+        daily_schedule = defaultdict(list)
+
+        for section_id in cohort_sections[cohort_id]:
+            slot_id, _ = schedule[section_id]
+
+            day, start, end = slot_info[slot_id]
+
+            daily_schedule[day].append(
+                (start, end)
+            )
+
+        total_idle = 0
+
+        for meetings in daily_schedule.values():
+            meetings.sort()
+
+            for index in range(len(meetings) - 1):
+                current_end = meetings[index][1]
+                next_start = meetings[index + 1][0]
+
+                total_idle += max(
+                    0,
+                    next_start - current_end,
+                )
+
+        return total_idle
+
+    # --------------------------------------------------------
+    # 3. Calculate instructor preference contribution
+    # --------------------------------------------------------
+
+    def section_preference_penalty(
+        schedule,
+        section_id,
+    ):
+        section = sections[section_id]
+        instructor = instructors[section.instructor_id]
+
+        slot_id, _ = schedule[section_id]
+
+        if (
+            instructor.preferred_slots
+            and slot_id not in instructor.preferred_slots
+        ):
+            return 1
+
+        return 0
+
+    # --------------------------------------------------------
+    # 4. Calculate exact penalty change for a move
+    # --------------------------------------------------------
+
+    def calculate_move_delta(
+        old_schedule,
+        new_schedule,
+        changed_section_ids,
+    ):
+        affected_cohorts = {
+            sections[section_id].cohort_id
+            for section_id in changed_section_ids
+        }
+
+        old_idle = sum(
+            cohort_idle_penalty(
+                old_schedule,
+                cohort_id,
+            )
+            for cohort_id in affected_cohorts
+        )
+
+        new_idle = sum(
+            cohort_idle_penalty(
+                new_schedule,
+                cohort_id,
+            )
+            for cohort_id in affected_cohorts
+        )
+
+        old_preference = sum(
+            section_preference_penalty(
+                old_schedule,
+                section_id,
+            )
+            for section_id in changed_section_ids
+        )
+
+        new_preference = sum(
+            section_preference_penalty(
+                new_schedule,
+                section_id,
+            )
+            for section_id in changed_section_ids
+        )
+
+        return (
+            idle_weight * (new_idle - old_idle)
+            + preference_weight
+            * (new_preference - old_preference)
+        )
+
+    # --------------------------------------------------------
+    # 5. Initialize search
+    # --------------------------------------------------------
+
     current_penalty = calculate_total_penalty(
-        current_timetable, 
-        sections, 
-        instructors, 
-        timeslots, 
-        cohort_ids, 
-        idle_weight, 
+        current_timetable,
+        sections,
+        instructors,
+        timeslots,
+        cohort_ids,
+        idle_weight,
         preference_weight,
     )
+
     best_penalty = current_penalty
 
     tabu_memory = {}
     iteration = 0
     no_improvement = 0
 
-    # Record the initial timetable before optimization begins.
     record_search_history(
         history,
         iteration,
         current_penalty,
         best_penalty,
     )
+
+    print("\nStarting bounded Tabu Search...", flush=True)
+    print(f"Initial penalty: {current_penalty}", flush=True)
+
+    # --------------------------------------------------------
+    # 6. Evaluate one candidate move
+    # --------------------------------------------------------
+
+    def evaluate_candidate(
+        candidate,
+        changed_section_ids,
+        current_iteration,
+        selected,
+    ):
+        selected_schedule, selected_penalty = selected
+
+        delta = calculate_move_delta(
+            current_timetable,
+            candidate,
+            changed_section_ids,
+        )
+
+        candidate_penalty = current_penalty + delta
+
+        tabu = is_tabu(
+            current_timetable,
+            candidate,
+            tabu_memory,
+            current_iteration,
+        )
+
+        aspiration = meets_aspiration_criterion(
+            candidate_penalty,
+            best_penalty,
+        )
+
+        if tabu and not aspiration:
+            return selected
+
+        if candidate_penalty < selected_penalty:
+            return candidate, candidate_penalty
+
+        return selected
+
+    # --------------------------------------------------------
+    # 7. Main Tabu Search loop
+    # --------------------------------------------------------
 
     while (
         iteration < max_iterations
@@ -254,71 +456,183 @@ def tabu_search(
     ):
         iteration += 1
 
-        # Remove expired tabu restrictions
-        remove_expired_tabu_entries(tabu_memory, iteration)
-
-        neighborhood = generate_reassignment_neighbors(
-            current_timetable, 
-            sections, 
-            rooms, 
-            timeslots, 
-            instructors,
-        )
-
-        neighborhood.extend(
-            generate_swap_neighbors(
-                current_timetable, 
-                sections, 
-                rooms, 
-                timeslots, 
-                instructors,
-            ),
+        remove_expired_tabu_entries(
+            tabu_memory,
+            iteration,
         )
 
         selected_neighbor = None
         selected_penalty = float("inf")
 
-        for candidate_timetable in neighborhood:
-            candidate_penalty = calculate_total_penalty(
-                candidate_timetable, 
-                sections, 
-                instructors, 
-                timeslots, 
-                cohort_ids, 
-                idle_weight, 
-                preference_weight,
+        feasible_moves = 0
+
+        # ----------------------------------------------------
+        # 7A. Sample reassignment moves
+        # ----------------------------------------------------
+
+        for _ in range(reassignment_attempts):
+            section_id = random.choice(section_ids)
+            section = sections[section_id]
+
+            slot_id = random.choice(slot_ids)
+            room_id = random.choice(room_ids)
+
+            new_assignment = (slot_id, room_id)
+
+            if (
+                new_assignment
+                == current_timetable[section_id]
+            ):
+                continue
+
+            candidate = current_timetable.copy()
+            del candidate[section_id]
+
+            if not validate_section_assignment(
+                section,
+                rooms[room_id],
+                timeslots[slot_id],
+                candidate,
+                instructors[section.instructor_id],
+                sections,
+                timeslots,
+            ):
+                continue
+
+            candidate[section_id] = new_assignment
+
+            feasible_moves += 1
+
+            selected_neighbor, selected_penalty = (
+                evaluate_candidate(
+                    candidate,
+                    [section_id],
+                    iteration,
+                    (
+                        selected_neighbor,
+                        selected_penalty,
+                    ),
+                )
             )
 
-            tabu = is_tabu(
-                current_timetable, 
-                candidate_timetable, 
-                tabu_memory, 
-                iteration,
+        # ----------------------------------------------------
+        # 7B. Sample swap moves
+        # ----------------------------------------------------
+
+        for _ in range(swap_attempts):
+            section_id_1, section_id_2 = (
+                random.sample(section_ids, 2)
             )
 
-            aspiration = meets_aspiration_criterion(
-                candidate_penalty,
-                best_penalty,
+            section_1 = sections[section_id_1]
+            section_2 = sections[section_id_2]
+
+            assignment_1 = current_timetable[
+                section_id_1
+            ]
+
+            assignment_2 = current_timetable[
+                section_id_2
+            ]
+
+            if assignment_1 == assignment_2:
+                continue
+
+            candidate = current_timetable.copy()
+
+            del candidate[section_id_1]
+            del candidate[section_id_2]
+
+            slot_2, room_2 = assignment_2
+
+            if not validate_section_assignment(
+                section_1,
+                rooms[room_2],
+                timeslots[slot_2],
+                candidate,
+                instructors[section_1.instructor_id],
+                sections,
+                timeslots,
+            ):
+                continue
+
+            candidate[section_id_1] = assignment_2
+
+            slot_1, room_1 = assignment_1
+
+            if not validate_section_assignment(
+                section_2,
+                rooms[room_1],
+                timeslots[slot_1],
+                candidate,
+                instructors[section_2.instructor_id],
+                sections,
+                timeslots,
+            ):
+                continue
+
+            candidate[section_id_2] = assignment_1
+
+            feasible_moves += 1
+
+            selected_neighbor, selected_penalty = (
+                evaluate_candidate(
+                    candidate,
+                    [section_id_1, section_id_2],
+                    iteration,
+                    (
+                        selected_neighbor,
+                        selected_penalty,
+                    ),
+                )
             )
 
-            if not tabu or aspiration:
-                if candidate_penalty < selected_penalty:
-                    selected_neighbor = candidate_timetable
-                    selected_penalty = candidate_penalty
+        # ----------------------------------------------------
+        # 7C. Select best admissible sampled neighbor
+        # ----------------------------------------------------
 
         if selected_neighbor is None:
+            print(
+                f"Iteration {iteration}: "
+                "No admissible sampled move found.",
+                flush=True,
+            )
             break
 
         add_tabu_assignments(
-            current_timetable, 
-            selected_neighbor, 
-            tabu_memory, 
-            iteration, 
+            current_timetable,
+            selected_neighbor,
+            tabu_memory,
+            iteration,
             tabu_tenure,
         )
 
-        current_timetable = selected_neighbor.copy()
+        current_timetable = selected_neighbor
         current_penalty = selected_penalty
+
+        # ----------------------------------------------------
+        # 7D. Verify exact penalty calculation
+        # ----------------------------------------------------
+
+        full_penalty = calculate_total_penalty(
+            current_timetable,
+            sections,
+            instructors,
+            timeslots,
+            cohort_ids,
+            idle_weight,
+            preference_weight,
+        )
+
+        if abs(current_penalty - full_penalty) > 1e-9:
+            raise AssertionError(
+                "Incremental penalty mismatch: "
+                f"{current_penalty} != {full_penalty}"
+            )
+
+        # ----------------------------------------------------
+        # 7E. Update best solution
+        # ----------------------------------------------------
 
         if current_penalty < best_penalty:
             best_timetable = current_timetable.copy()
@@ -333,4 +647,17 @@ def tabu_search(
             current_penalty,
             best_penalty,
         )
+
+        print(
+            f"Iteration {iteration}/{max_iterations} | "
+            f"Current: {current_penalty} | "
+            f"Best: {best_penalty} | "
+            f"Feasible sampled moves: {feasible_moves}",
+            flush=True,
+        )
+
+    print("\nTabu Search completed.", flush=True)
+    print(f"Iterations executed: {iteration}")
+    print(f"Best penalty: {best_penalty}")
+
     return best_timetable

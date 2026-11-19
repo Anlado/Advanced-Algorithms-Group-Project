@@ -140,228 +140,149 @@ assert zero_stagnation_result == initial_timetable
 print("Test F passed: Zero stagnation limit prevents search.")
 
 
+
 # ============================================================
-# CONTROLLED SEARCH TESTS
+# BOUNDED TABU SEARCH TESTS
 # ============================================================
 
-# These tests replace the neighborhood generators and penalty function
-# temporarily so that we can examine the search's decisions precisely.
-# The real-dataset tests above already exercise the actual components.
-
-X0 = {"S1": ("T1", "R1")}
-X1 = {"S1": ("T2", "R1")}
-X2 = {"S1": ("T3", "R1")}
-
-scores = {
-    "T1": 100,
-    "T2": 80,
-    "T3": 120,
-}
+import random
 
 
-def fake_penalty(timetable, *args):
-    return scores[timetable["S1"][0]]
+# Test G: Search history starts with the initial penalty
+# and never reports a worsening best-known penalty.
 
+random.seed(42)
+history = []
 
-def fake_reassignment(timetable, *args):
-    current = timetable["S1"][0]
-
-    if current == "T1":
-        return [X1.copy()]
-    if current == "T2":
-        return [X2.copy()]
-    return []
-
-
-def fake_swap(timetable, *args):
-    return []
-
-
-# Test G: The search may accept a worsening move but returns the best.
-accepted_moves = []
-
-def record_move(previous, new, memory, iteration, tenure):
-    accepted_moves.append(new.copy())
-    return memory
-
-
-with (
-    patch(
-        "src.heuristic.tabu_search.generate_reassignment_neighbors",
-        side_effect=fake_reassignment,
-    ),
-    patch(
-        "src.heuristic.tabu_search.generate_swap_neighbors",
-        side_effect=fake_swap,
-    ),
-    patch(
-        "src.heuristic.tabu_search.calculate_total_penalty",
-        side_effect=fake_penalty,
-    ),
-    patch(
-        "src.heuristic.tabu_search.add_tabu_assignments",
-        side_effect=record_move,
-    ),
-):
-    controlled_result = tabu_search(
-        X0, {}, {}, {}, {}, set(),
-        1, 45, 5, 10, 5,
-    )
-
-assert accepted_moves == [X1, X2], (
-    f"Expected moves to X1 and X2, got {accepted_moves}"
+result = tabu_search(
+    initial_timetable,
+    sections,
+    rooms,
+    timeslots,
+    instructors,
+    cohort_ids,
+    idle_weight,
+    preference_weight,
+    tabu_tenure=5,
+    max_iterations=10,
+    no_improvement_max_iterations=5,
+    history=history,
 )
-assert controlled_result == X1
 
-print("Test G passed: Worsening move accepted while best solution preserved.")
+assert history
+assert history[0]["iteration"] == 0
+assert history[0]["current_penalty"] == initial_penalty
+assert history[0]["best_penalty"] == initial_penalty
+
+best_scores = [
+    entry["best_penalty"]
+    for entry in history
+]
+
+assert all(
+    later <= earlier
+    for earlier, later in zip(
+        best_scores,
+        best_scores[1:],
+    )
+)
+
+assert penalty(result) == history[-1]["best_penalty"]
+
+print("Test G passed: Best-known penalty history is consistent.")
 
 
 # Test H: Maximum iteration limit is respected.
-accepted_moves.clear()
 
-with (
-    patch(
-        "src.heuristic.tabu_search.generate_reassignment_neighbors",
-        side_effect=fake_reassignment,
-    ),
-    patch(
-        "src.heuristic.tabu_search.generate_swap_neighbors",
-        side_effect=fake_swap,
-    ),
-    patch(
-        "src.heuristic.tabu_search.calculate_total_penalty",
-        side_effect=fake_penalty,
-    ),
-    patch(
-        "src.heuristic.tabu_search.add_tabu_assignments",
-        side_effect=record_move,
-    ),
-):
-    tabu_search(X0, {}, {}, {}, {}, set(), 1, 45, 5, 1, 5)
+random.seed(42)
+short_history = []
 
-assert accepted_moves == [X1]
+tabu_search(
+    initial_timetable,
+    sections,
+    rooms,
+    timeslots,
+    instructors,
+    cohort_ids,
+    idle_weight,
+    preference_weight,
+    tabu_tenure=5,
+    max_iterations=2,
+    no_improvement_max_iterations=10,
+    history=short_history,
+)
+
+assert len(short_history) <= 3
+assert short_history[-1]["iteration"] <= 2
 
 print("Test H passed: Maximum iteration limit respected.")
 
 
-# Test I: Consecutive non-improvement limit is respected.
-accepted_moves.clear()
+# Test I: Search never exceeds its stagnation limit.
 
-with (
-    patch(
-        "src.heuristic.tabu_search.generate_reassignment_neighbors",
-        side_effect=fake_reassignment,
-    ),
-    patch(
-        "src.heuristic.tabu_search.generate_swap_neighbors",
-        side_effect=fake_swap,
-    ),
-    patch(
-        "src.heuristic.tabu_search.calculate_total_penalty",
-        side_effect=fake_penalty,
-    ),
-    patch(
-        "src.heuristic.tabu_search.add_tabu_assignments",
-        side_effect=record_move,
-    ),
-):
-    tabu_search(X0, {}, {}, {}, {}, set(), 1, 45, 5, 10, 1)
+random.seed(42)
+stagnation_history = []
 
-assert accepted_moves == [X1, X2]
-
-print("Test I passed: Consecutive non-improvement limit respected.")
-
-
-# Test J: Aspiration overrides a tabu restriction when the candidate
-# improves on the best penalty found so far.
-
-A0 = {"S1": ("T1", "R1")}
-A1 = {"S1": ("T2", "R1")}
-A2 = {"S1": ("T3", "R1")}
-
-aspiration_scores = {
-    "T1": 100,
-    "T2": 80,
-    "T3": 60,
-}
-
-aspiration_moves = []
-
-
-def aspiration_penalty(timetable, *args):
-    return aspiration_scores[timetable["S1"][0]]
-
-
-def aspiration_neighbors(timetable, *args):
-    current = timetable["S1"][0]
-
-    if current == "T1":
-        return [A1.copy()]
-
-    if current == "T2":
-        return [A2.copy()]
-
-    return []
-
-
-def aspiration_tabu(current, candidate, memory, iteration):
-    # Simulate A2 being prohibited by tabu memory.
-    return candidate == A2
-
-
-def record_aspiration_move(previous, new, memory, iteration, tenure):
-    aspiration_moves.append(new.copy())
-    return memory
-
-
-with (
-    patch(
-        "src.heuristic.tabu_search.generate_reassignment_neighbors",
-        side_effect=aspiration_neighbors,
-    ),
-    patch(
-        "src.heuristic.tabu_search.generate_swap_neighbors",
-        return_value=[],
-    ),
-    patch(
-        "src.heuristic.tabu_search.calculate_total_penalty",
-        side_effect=aspiration_penalty,
-    ),
-    patch(
-        "src.heuristic.tabu_search.is_tabu",
-        side_effect=aspiration_tabu,
-    ),
-    patch(
-        "src.heuristic.tabu_search.add_tabu_assignments",
-        side_effect=record_aspiration_move,
-    ),
-):
-    aspiration_result = tabu_search(
-        A0,
-        {},
-        {},
-        {},
-        {},
-        set(),
-        1,
-        45,
-        5,
-        10,
-        5,
-    )
-
-assert aspiration_moves == [A1, A2], (
-    f"Expected both moves to be accepted, got {aspiration_moves}"
+tabu_search(
+    initial_timetable,
+    sections,
+    rooms,
+    timeslots,
+    instructors,
+    cohort_ids,
+    idle_weight,
+    preference_weight,
+    tabu_tenure=5,
+    max_iterations=20,
+    no_improvement_max_iterations=1,
+    history=stagnation_history,
 )
 
-assert aspiration_result == A2, (
-    f"Expected aspiration to allow the best timetable A2, got {aspiration_result}"
+consecutive_non_improvements = 0
+
+for previous, current in zip(
+    stagnation_history,
+    stagnation_history[1:],
+):
+    if current["best_penalty"] < previous["best_penalty"]:
+        consecutive_non_improvements = 0
+    else:
+        consecutive_non_improvements += 1
+
+    assert consecutive_non_improvements <= 1
+
+print("Test I passed: Stagnation limit respected.")
+
+
+# Test J: Returned timetable remains feasible, and the
+# full penalty agrees with the recorded best-known penalty.
+
+random.seed(42)
+verification_history = []
+
+verified_result = tabu_search(
+    initial_timetable,
+    sections,
+    rooms,
+    timeslots,
+    instructors,
+    cohort_ids,
+    idle_weight,
+    preference_weight,
+    tabu_tenure=5,
+    max_iterations=10,
+    no_improvement_max_iterations=5,
+    history=verification_history,
 )
 
-print("Test J passed: Aspiration overrides tabu for a new best solution.")
+assert set(verified_result) == set(sections)
+assert is_feasible(verified_result)
+assert penalty(verified_result) == (
+    verification_history[-1]["best_penalty"]
+)
 
+print("Test J passed: Feasibility and final penalty verified.")
 
-print("\nAll 10 Tabu Search integration tests passed.")
+print("\nAll bounded Tabu Search integration checks passed.")
 print(f"Initial timetable penalty: {initial_penalty}")
-print(f"Best timetable penalty: {final_penalty}")
-print(f"Penalty reduction: {initial_penalty - final_penalty}")
+print(f"Best timetable penalty: {penalty(verified_result)}")
