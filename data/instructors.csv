@@ -1,0 +1,5 @@
+id,first_name,last_name,domains,unavailable_slots,required_no_teach_slots,preferred_slots
+I1,James,Carter,CS,T6,,T1;T4
+I2,Sarah,Mitchell,CS;MATH,T3,,T2;T5
+I3,Daniel,Thompson,MATH,T1,T5,T3;T4
+I4,Emily,Johnson,CS,T2,,T5;T6

@@ -1,0 +1,9 @@
+id,course_id,subject_area,enrollment,instructor_id,needs_lab,cohort_id,building_pref
+S1,CS101,CS,20,I1,false,C1,ENG
+S2,CS102,CS,35,I2,false,C1,SCI
+S3,CS201,CS,18,I1,true,C2,ENG
+S4,MATH101,MATH,22,I3,false,C3,SCI
+S5,CS301,CS,40,I4,true,C2,SCI
+S6,MATH201,MATH,20,I2,false,C3,ENG
+S7,CS202,CS,20,I4,false,C4,ENG
+S8,MATH301,MATH,30,I3,false,C4,SCI

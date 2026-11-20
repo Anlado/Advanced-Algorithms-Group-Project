@@ -1,0 +1,5 @@
+id,capacity,is_lab,building
+R1,25,false,ENG
+R2,45,false,SCI
+R3,24,true,ENG
+R4,50,true,SCI

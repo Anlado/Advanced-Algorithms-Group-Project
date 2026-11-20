@@ -1,0 +1,23 @@
+{
+    "dataset": {
+        "sections": 525,
+        "rooms": 100,
+        "timeslots": 60,
+        "instructors": 180
+    },
+    "optimization": {
+        "initial_penalty": 50055,
+        "final_penalty": 855,
+        "penalty_reduction": 49200,
+        "improvement_percent": 98.29
+    },
+    "feasibility": {
+        "feasible": true,
+        "hard_constraint_violations": 0
+    },
+    "runtime_seconds": {
+        "construction": 141.242259,
+        "optimization": 48.098014,
+        "total": 189.340272
+    }
+}
