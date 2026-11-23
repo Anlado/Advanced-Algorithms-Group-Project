@@ -121,6 +121,31 @@ Install dependencies:
 python -m pip install -r requirements.txt
 ```
 
+### Generate the Dataset
+
+The synthetic university dataset is already included in the repository.
+Regenerating the dataset is optional.
+
+To regenerate the dataset, execute the following command from the
+project root directory:
+
+```bash
+python generate_dataset.py
+```
+
+The generator creates the following CSV files in `data/university/`:
+
+- `sections.csv`
+- `instructors.csv`
+- `rooms.csv`
+- `timeslots.csv`
+
+The generator uses a fixed random seed for reproducibility.
+Dataset generation parameters can be modified directly in
+`generate_dataset.py`.
+
+**Note:** Running the generator overwrites the existing dataset files.
+
 ### Run the Project
 
 Review `config.json` to select the dataset, output directory, random seed, and Tabu Search parameters.
