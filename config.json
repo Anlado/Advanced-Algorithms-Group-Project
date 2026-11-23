@@ -5,7 +5,7 @@
   "tabu_search": {
     "idle_weight": 1,
     "preference_weight": 45,
-    "max_iterations": 100,
+    "max_iterations": 500,
     "tabu_tenure": 10,
     "no_improvement_max_iterations": 30
   }
