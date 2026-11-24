@@ -120,3 +120,6 @@ __pycache__/
 
 # Generated reports
 out/
+
+# IDE configuration
+.idea/
