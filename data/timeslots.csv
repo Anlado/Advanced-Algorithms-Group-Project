@@ -1,0 +1,7 @@
+id,day,start_time,duration_min
+T1,Mon,09:00,60
+T2,Mon,10:00,60
+T3,Mon,11:00,60
+T4,Tue,09:00,60
+T5,Tue,10:00,60
+T6,Tue,11:00,60

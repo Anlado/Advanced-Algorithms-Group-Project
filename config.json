@@ -1,0 +1,12 @@
+{
+  "data_directory": "data/university",
+  "output_directory": "out",
+  "random_seed": 42,
+  "tabu_search": {
+    "idle_weight": 1,
+    "preference_weight": 45,
+    "max_iterations": 500,
+    "tabu_tenure": 10,
+    "no_improvement_max_iterations": 30
+  }
+}

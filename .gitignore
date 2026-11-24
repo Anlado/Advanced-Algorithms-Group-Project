@@ -108,3 +108,18 @@ fabric.properties
 .idea/**/azureSettings.xml
 
 # End of https://www.toptal.com/developers/gitignore/api/pycharm
+# Python
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# Virtual environments
+.venv/
+
+# Generated reports
+out/
+
+# IDE configuration
+.idea/
