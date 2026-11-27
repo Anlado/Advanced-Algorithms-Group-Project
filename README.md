@@ -153,7 +153,7 @@ Review `config.json` to select the dataset, output directory, random seed, and T
 Then execute:
 
 ```bash
-python -u run_modular_project.py
+python -u run_project.py
 ```
 
 The program constructs an initial feasible timetable, performs Tabu Search optimization, validates the resulting timetable, and generates evaluation outputs.

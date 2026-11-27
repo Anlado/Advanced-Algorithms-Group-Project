@@ -40,6 +40,6 @@ Run from the project root:
 
 1. Set `tabu_search.max_iterations` to 500 in `config.json`.
 2. Keep the remaining configuration values listed above.
-3. Run `python -u run_modular_project.py`.
+3. Run `python -u run_project.py`.
 
 Generated outputs are written to `out/`.

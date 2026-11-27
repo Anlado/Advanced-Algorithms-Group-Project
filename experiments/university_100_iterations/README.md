@@ -52,7 +52,7 @@ The resulting timetable satisfies all implemented hard constraints.
 Run the project with the university dataset and the configuration listed above:
 
 ```bash
-python -u run_modular_project.py
+python -u run_project.py
 ```
 
 The results are deterministic only to the extent that all randomness is controlled by the configured seed.
